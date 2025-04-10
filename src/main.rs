@@ -1,8 +1,8 @@
 use eframe::{
     egui::{
         accesskit::Vec2, vec2, Align2, CentralPanel, Color32, Context, FontId, Frame, Grid, Id,
-        Layout, Margin, PointerButton, Rect, Rgba, RichText, Sense, Stroke, Ui, UiBuilder,
-        ViewportBuilder, ViewportClass, ViewportCommand, ViewportId, Visuals, Window,
+        Key, Layout, Margin, PointerButton, Rect, Rgba, RichText, Sense, Stroke, TextBuffer, Ui,
+        UiBuilder, ViewportBuilder, ViewportClass, ViewportCommand, ViewportId, Visuals, Window,
     },
     epaint::text,
     App, NativeOptions,
@@ -26,67 +26,147 @@ fn main() -> eframe::Result {
 }
 
 struct Kmouse {
-    show_overlay: bool,
-    letters: Vec<String>,
+    title: String,
+    cells: Vec<CellPlural>,
+}
+
+struct CellPlural {
+    combo: String,
+    first: char,
+    last: char,
+}
+
+impl CellPlural {
+    fn new() -> Self {
+        Self {
+            combo: String::new(),
+            first: char::default(),
+            last: char::default(),
+        }
+    }
+}
+
+struct CellSingular {
+    unit: char,
 }
 
 impl Kmouse {
-    fn generate_letter_combinations() -> Vec<String> {
-        let mut combos = vec![];
+    fn generate_letter_combinations() -> Vec<CellPlural> {
+        let mut combos: Vec<CellPlural> = vec![];
         let letters = ('A'..='Z').collect::<Vec<_>>();
         let symbols = vec!['@', '#', '$', '%', '&'];
 
         for &a in &letters {
             for &b in &letters {
-                combos.push(format!("{}{}", a, b));
+                let mut cell = CellPlural::new();
+                let combo = format!("{}{}", a, b);
+                cell.combo = combo;
+                cell.first = a;
+                cell.last = b;
+                combos.push(cell);
             }
             for &b in &symbols {
-                combos.push(format!("{}{}", a, b));
+                let mut cell = CellPlural::new();
+                let combo = format!("{}{}", a, b);
+                cell.combo = combo;
+                cell.first = a;
+                cell.last = b;
+                combos.push(cell);
             }
         }
 
         combos
+    }
+
+    fn draw_grid(&mut self, ctx: &Context, ui: &mut Ui) {
+        let available_size = ui.available_size();
+        let cells = &self.cells;
+
+        // You can control the base "feel" of cell size here:
+        let desired_cell_size = 64.0;
+
+        // Calculate number of cols and rows to fill screen
+        let cols = (available_size.x / desired_cell_size).floor().max(1.0) as usize;
+        let rows = (available_size.y / desired_cell_size).floor().max(1.0) as usize;
+
+        // Recalculate cell size so grid fits perfectly
+        let cell_width = available_size.x / cols as f32;
+        let cell_height = available_size.y / rows as f32;
+
+        let origin = ui.min_rect().min;
+        let semi_transparent_white = Color32::from_rgba_unmultiplied(255, 255, 255, 64);
+
+        let mut index = 0;
+
+        for row in 0..rows {
+            for col in 0..cols {
+                if index >= cells.len() {
+                    return;
+                }
+
+                let first = &cells[index].first;
+                let combo = &cells[index].combo;
+
+                if ctx.input(|i| {
+                    let mut tmp = [0; 4];
+                    i.key_pressed(
+                        Key::from_name(first.encode_utf8(&mut tmp))
+                            .expect(format!("invalid name {}", first).as_str()),
+                    )
+                }) {
+                    self.title = String::from("key pressed");
+                }
+                let rect = Rect::from_min_size(
+                    origin + vec2(col as f32 * cell_width, row as f32 * cell_height),
+                    vec2(cell_width, cell_height),
+                );
+
+                ui.painter().rect(
+                    rect,
+                    0.0,
+                    semi_transparent_white,
+                    Stroke::new(1.0, Color32::WHITE),
+                    eframe::egui::StrokeKind::Middle,
+                );
+
+                ui.painter().text(
+                    rect.center(),
+                    Align2::CENTER_CENTER,
+                    combo,
+                    FontId::monospace(cell_height * 0.4),
+                    Color32::WHITE,
+                );
+
+                index += 1;
+            }
+        }
     }
 }
 
 impl Default for Kmouse {
     fn default() -> Self {
         Self {
-            show_overlay: false,
-            letters: Self::generate_letter_combinations(),
+            cells: Self::generate_letter_combinations(),
+            title: String::from("Kmouse"),
         }
     }
 }
 
 impl App for Kmouse {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
-        if !self.show_overlay {
-            CentralPanel::default().frame(Frame::NONE).show(ctx, |ui| {
-                let app_rect = ui.max_rect();
+        CentralPanel::default().frame(Frame::NONE).show(ctx, |ui| {
+            let app_rect = ui.max_rect();
 
-                let title_bar_height = 32.0;
-                let title_bar_rect = {
-                    let mut rect = app_rect;
-                    rect.max.y = rect.min.y + title_bar_height;
-                    rect
-                };
-
-                let title = "KMOUSE";
-
-                title_bar_ui(ui, title_bar_rect, title);
-
-                let available_size = ui.available_size();
-                let total_cells = self.letters.len();
-
-                // Estimate grid dimensions
-                let cols = (total_cells as f32).sqrt().ceil() as usize;
-                let cell_size = (available_size.x / cols as f32).min(
-                    (available_size.y - title_bar_height)
-                        / (total_cells as f32 / cols as f32).ceil(),
-                );
-                draw_grid(ui, &self.letters);
-            });
-        }
+            /*
+                        let title_bar_height = 32.0;
+                        let title_bar_rect = {
+                            let mut rect = app_rect;
+                            rect.max.y = rect.min.y + title_bar_height;
+                            rect
+                        };
+            */
+            self.draw_grid(ctx, ui);
+        });
     }
 }
 
@@ -110,56 +190,4 @@ fn title_bar_ui(ui: &mut Ui, title_bar_rect: eframe::epaint::Rect, title: &str) 
         ],
         ui.visuals().widgets.noninteractive.bg_stroke,
     );
-}
-
-fn draw_grid(ui: &mut Ui, combos: &[String]) {
-    let available_size = ui.available_size();
-
-    // You can control the base "feel" of cell size here:
-    let desired_cell_size = 64.0;
-
-    // Calculate number of cols and rows to fill screen
-    let cols = (available_size.x / desired_cell_size).floor().max(1.0) as usize;
-    let rows = (available_size.y / desired_cell_size).floor().max(1.0) as usize;
-    let total_cells = cols * rows;
-
-    // Recalculate cell size so grid fits perfectly
-    let cell_width = available_size.x / cols as f32;
-    let cell_height = available_size.y / rows as f32;
-
-    let origin = ui.min_rect().min;
-    let semi_transparent_white = Color32::from_rgba_unmultiplied(255, 255, 255, 128);
-
-    let mut index = 0;
-
-    for row in 0..rows {
-        for col in 0..cols {
-            if index >= combos.len() {
-                return;
-            }
-
-            let rect = Rect::from_min_size(
-                origin + vec2(col as f32 * cell_width, row as f32 * cell_height),
-                vec2(cell_width, cell_height),
-            );
-
-            ui.painter().rect(
-                rect,
-                0.0,
-                semi_transparent_white,
-                Stroke::new(1.0, Color32::WHITE),
-                eframe::egui::StrokeKind::Middle,
-            );
-
-            ui.painter().text(
-                rect.center(),
-                Align2::CENTER_CENTER,
-                &combos[index],
-                FontId::monospace(cell_height * 0.4),
-                Color32::WHITE,
-            );
-
-            index += 1;
-        }
-    }
 }
