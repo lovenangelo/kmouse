@@ -30,6 +30,7 @@ struct Kmouse {
     title: String,
     cells: Vec<CellPlural>,
     focused_cell: FocusedCell,
+    has_clicked: bool,
 }
 
 struct CellPlural {
@@ -110,19 +111,24 @@ impl Kmouse {
 
         for &a in &letters {
             if ctx.input(|i| {
-                i.key_pressed(
+                i.key_released(
                     Key::from_name(&a.to_string().as_str())
                         .expect(format!("invalid name {}", &a).as_str()),
                 )
             }) {
-                if self.focused_cell.first == '\0' || self.focused_cell.last == '\0' {
-                    if self.focused_cell.first != '\0' {
-                        self.focused_cell.last = a;
+                if !self.has_clicked {
+                    if self.focused_cell.first == '\0' || self.focused_cell.last == '\0' {
+                        if self.focused_cell.first != '\0' {
+                            self.focused_cell.last = a;
+                        }
+                        if self.focused_cell.first == '\0' {
+                            self.focused_cell.first = a;
+                        }
+                        println!("{:?}", self.focused_cell)
                     }
-                    if self.focused_cell.first == '\0' {
-                        self.focused_cell.first = a;
-                    }
-                    println!("{:?}", self.focused_cell)
+                }
+                if self.has_clicked {
+                    self.has_clicked = false;
                 }
             }
         }
@@ -158,6 +164,7 @@ impl Kmouse {
                         if self.focused_cell.first != '\0' && self.focused_cell.last != '\0' {
                             draw_micro_grids(ctx, cell_width, cell_height, ui, rect, || {
                                 self.focused_cell = FocusedCell::new();
+                                self.has_clicked = true;
                             });
                         } else {
                             ui.painter().text(
@@ -239,6 +246,7 @@ fn draw_micro_grids<F>(
                         .expect(format!("invalid {}", first.unit).as_str()),
                 )
             }) {
+                println!("{:?}", first.unit);
                 move_cursor_to(coordinates.0, coordinates.1);
                 on_keypress();
             }
@@ -270,6 +278,7 @@ impl Default for Kmouse {
             cells: Self::generate_letter_combinations(),
             title: String::from("Kmouse"),
             focused_cell: FocusedCell::new(),
+            has_clicked: false,
         }
     }
 }
