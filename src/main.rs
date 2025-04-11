@@ -1,10 +1,8 @@
 use eframe::{
     egui::{
-        accesskit::Vec2, vec2, Align2, CentralPanel, Color32, Context, FontId, Frame, Grid, Id,
-        Key, Layout, Margin, PointerButton, Rect, Rgba, RichText, Sense, Stroke, TextBuffer, Ui,
-        UiBuilder, ViewportBuilder, ViewportClass, ViewportCommand, ViewportId, Visuals, Window,
+        vec2, Align2, CentralPanel, Color32, Context, FontId, Frame, Key, Rect, Stroke, Ui,
+        ViewportBuilder,
     },
-    epaint::text,
     App, NativeOptions,
 };
 
@@ -28,12 +26,28 @@ fn main() -> eframe::Result {
 struct Kmouse {
     title: String,
     cells: Vec<CellPlural>,
+    focused_cell: FocusedCell,
 }
 
 struct CellPlural {
     combo: String,
     first: char,
     last: char,
+}
+
+#[derive(Debug)]
+struct FocusedCell {
+    first: char,
+    last: char,
+}
+
+impl FocusedCell {
+    fn new() -> Self {
+        Self {
+            first: char::default(),
+            last: char::default(),
+        }
+    }
 }
 
 impl CellPlural {
@@ -82,60 +96,68 @@ impl Kmouse {
         let available_size = ui.available_size();
         let cells = &self.cells;
 
-        // You can control the base "feel" of cell size here:
         let desired_cell_size = 64.0;
 
-        // Calculate number of cols and rows to fill screen
         let cols = (available_size.x / desired_cell_size).floor().max(1.0) as usize;
         let rows = (available_size.y / desired_cell_size).floor().max(1.0) as usize;
 
-        // Recalculate cell size so grid fits perfectly
         let cell_width = available_size.x / cols as f32;
         let cell_height = available_size.y / rows as f32;
 
         let origin = ui.min_rect().min;
-        let semi_transparent_white = Color32::from_rgba_unmultiplied(255, 255, 255, 64);
+        let transparent_color = Color32::from_rgba_unmultiplied(255, 235, 200, 10);
 
         let mut index = 0;
+
+        if ctx.input(|i| i.key_pressed(Key::Escape)) {
+            self.focused_cell = FocusedCell::new();
+        }
 
         for row in 0..rows {
             for col in 0..cols {
                 if index >= cells.len() {
                     return;
                 }
-
                 let first = &cells[index].first;
                 let combo = &cells[index].combo;
 
-                if ctx.input(|i| {
-                    let mut tmp = [0; 4];
-                    i.key_pressed(
-                        Key::from_name(first.encode_utf8(&mut tmp))
-                            .expect(format!("invalid name {}", first).as_str()),
-                    )
-                }) {
-                    self.title = String::from("key pressed");
+                if self.focused_cell.first == '\0'
+                    || (self.focused_cell.first != '\0' && &self.focused_cell.first == first)
+                {
+                    if ctx.input(|i| {
+                        let mut tmp = [0; 4];
+                        i.key_pressed(
+                            Key::from_name(first.encode_utf8(&mut tmp))
+                                .expect(format!("invalid name {}", first).as_str()),
+                        )
+                    }) {
+                        if self.focused_cell.first == '\0' {
+                            println!("{:?}", self.focused_cell);
+                            self.focused_cell.first = first.clone();
+                            println!("{:?}", self.focused_cell);
+                        }
+                    }
+                    let rect = Rect::from_min_size(
+                        origin + vec2(col as f32 * cell_width, row as f32 * cell_height),
+                        vec2(cell_width, cell_height),
+                    );
+
+                    ui.painter().rect(
+                        rect,
+                        0.0,
+                        transparent_color,
+                        Stroke::new(1.0, transparent_color),
+                        eframe::egui::StrokeKind::Middle,
+                    );
+
+                    ui.painter().text(
+                        rect.center(),
+                        Align2::CENTER_CENTER,
+                        combo,
+                        FontId::monospace(cell_height * 0.4),
+                        transparent_color,
+                    );
                 }
-                let rect = Rect::from_min_size(
-                    origin + vec2(col as f32 * cell_width, row as f32 * cell_height),
-                    vec2(cell_width, cell_height),
-                );
-
-                ui.painter().rect(
-                    rect,
-                    0.0,
-                    semi_transparent_white,
-                    Stroke::new(1.0, Color32::WHITE),
-                    eframe::egui::StrokeKind::Middle,
-                );
-
-                ui.painter().text(
-                    rect.center(),
-                    Align2::CENTER_CENTER,
-                    combo,
-                    FontId::monospace(cell_height * 0.4),
-                    Color32::WHITE,
-                );
 
                 index += 1;
             }
@@ -148,6 +170,7 @@ impl Default for Kmouse {
         Self {
             cells: Self::generate_letter_combinations(),
             title: String::from("Kmouse"),
+            focused_cell: FocusedCell::new(),
         }
     }
 }
@@ -155,39 +178,7 @@ impl Default for Kmouse {
 impl App for Kmouse {
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         CentralPanel::default().frame(Frame::NONE).show(ctx, |ui| {
-            let app_rect = ui.max_rect();
-
-            /*
-                        let title_bar_height = 32.0;
-                        let title_bar_rect = {
-                            let mut rect = app_rect;
-                            rect.max.y = rect.min.y + title_bar_height;
-                            rect
-                        };
-            */
             self.draw_grid(ctx, ui);
         });
     }
-}
-
-fn title_bar_ui(ui: &mut Ui, title_bar_rect: eframe::epaint::Rect, title: &str) {
-    let painter = ui.painter();
-
-    // Paint the title:
-    painter.text(
-        title_bar_rect.center(),
-        Align2::CENTER_CENTER,
-        title,
-        FontId::proportional(20.0),
-        ui.style().visuals.text_color(),
-    );
-
-    // Paint the line under the title:
-    painter.line_segment(
-        [
-            title_bar_rect.left_bottom() + vec2(1.0, 0.0),
-            title_bar_rect.right_bottom() + vec2(-1.0, 0.0),
-        ],
-        ui.visuals().widgets.noninteractive.bg_stroke,
-    );
 }
