@@ -1,12 +1,12 @@
 use eframe::{
     egui::{
-        vec2, Align2, CentralPanel, Color32, Context, FontId, Frame, Key, Rect, Stroke, Ui,
+        vec2, Align2, CentralPanel, Color32, Context, FontId, Frame, Key, Pos2, Rect, Stroke, Ui,
         ViewportBuilder,
     },
     App, NativeOptions,
 };
 
-const SINGLE_CELL_VAlUES: &str = "qweruiopasdfjkl;";
+const SINGLE_CELL_VAlUES: &str = "QWERASDFUOIPJKL;";
 
 fn main() -> eframe::Result {
     let native_options = NativeOptions {
@@ -152,13 +152,17 @@ impl Kmouse {
                             eframe::egui::StrokeKind::Middle,
                         );
 
-                        ui.painter().text(
-                            rect.center(),
-                            Align2::CENTER_CENTER,
-                            combo,
-                            FontId::monospace(cell_height * 0.4),
-                            transparent_color,
-                        );
+                        if self.focused_cell.first != '\0' && self.focused_cell.last != '\0' {
+                            draw_micro_grids(ctx, cell_width, cell_height, ui, rect, origin);
+                        } else {
+                            ui.painter().text(
+                                rect.center(),
+                                Align2::CENTER_CENTER,
+                                combo,
+                                FontId::monospace(cell_height * 0.4),
+                                transparent_color,
+                            );
+                        }
                     }
                 }
 
@@ -166,78 +170,70 @@ impl Kmouse {
             }
         }
     }
+}
+fn draw_micro_grids(
+    ctx: &Context,
+    parent_cell_width: f32,
+    parent_cell_height: f32,
+    ui: &mut Ui,
+    parent_rect: Rect,
+    parent_origin: Pos2,
+) {
+    let cells: Vec<CellSingular> = SINGLE_CELL_VAlUES
+        .chars()
+        .map(|c| CellSingular { unit: c })
+        .collect();
+    let length = SINGLE_CELL_VAlUES.chars().count();
 
-    fn draw_micro_grids(
-        &mut self,
-        ctx: &Context,
-        parent_cell_width: f32,
-        parent_cell_height: f32,
-        ui: &mut Ui,
-    ) {
-        let cells: Vec<CellSingular> = SINGLE_CELL_VAlUES
-            .chars()
-            .map(|c| CellSingular { unit: c })
-            .collect();
-        let length = SINGLE_CELL_VAlUES.chars().count();
+    let cols: usize = 4;
+    let rows: usize = 4;
 
-        let cols: usize = 4;
-        let rows: usize = 4;
+    let cell_width = parent_cell_width / cols as f32;
+    let cell_height = parent_cell_height / rows as f32;
 
-        let cell_width = parent_cell_width / cols as f32;
-        let cell_height = parent_cell_height / rows as f32;
+    let origin = parent_rect.min;
+    let transparent_color = Color32::from_rgba_unmultiplied(255, 235, 200, 10);
 
-        let origin = ui.min_rect().min;
-        let transparent_color = Color32::from_rgba_unmultiplied(255, 235, 200, 10);
+    let mut index = 0;
 
-        let mut index = 0;
-
-        if ctx.input(|i| i.key_pressed(Key::Escape)) {
-            self.focused_cell = FocusedCell::new();
-        }
-
-        for row in 0..rows {
-            for col in 0..cols {
-                if index >= length {
-                    return;
-                }
-                let first = &cells[index];
-
-                if self.focused_cell.first == '\0'
-                    || (self.focused_cell.first != '\0' && &self.focused_cell.first == &first.unit)
-                {
-                    if ctx.input(|i| {
-                        let mut tmp = [0; 4];
-                        i.key_pressed(
-                            Key::from_name(first.unit.encode_utf8(&mut tmp))
-                                .expect(format!("invalid {}", first.unit).as_str()),
-                        )
-                    }) {
-                        println!("{:?}", first);
-                    }
-                    let rect = Rect::from_min_size(
-                        origin + vec2(col as f32 * cell_width, row as f32 * cell_height),
-                        vec2(cell_width, cell_height),
-                    );
-
-                    ui.painter().rect(
-                        rect,
-                        0.0,
-                        transparent_color,
-                        Stroke::new(1.0, transparent_color),
-                        eframe::egui::StrokeKind::Middle,
-                    );
-
-                    ui.painter().text(
-                        rect.center(),
-                        Align2::CENTER_CENTER,
-                        first.unit,
-                        FontId::monospace(cell_height * 0.4),
-                        transparent_color,
-                    );
-                }
-
-                index += 1;
+    for row in 0..rows {
+        for col in 0..cols {
+            if index >= length {
+                return;
             }
+            let first = &cells[index];
+
+            if ctx.input(|i| {
+                let mut tmp = [0; 4];
+                i.key_pressed(
+                    Key::from_name(first.unit.encode_utf8(&mut tmp))
+                        .expect(format!("invalid {}", first.unit).as_str()),
+                )
+            }) {
+                println!("{:?}", first);
+            }
+            let rect = Rect::from_min_size(
+                origin + vec2(col as f32 * cell_width, row as f32 * cell_height),
+                vec2(cell_width, cell_height),
+            );
+
+            ui.painter().rect(
+                rect,
+                0.0,
+                transparent_color,
+                Stroke::new(1.0, transparent_color),
+                eframe::egui::StrokeKind::Middle,
+            );
+
+            ui.painter().text(
+                rect.center(),
+                Align2::CENTER_CENTER,
+                first.unit,
+                FontId::monospace(cell_height * 0.4),
+                transparent_color,
+            );
+
+            index += 1;
         }
     }
 }
