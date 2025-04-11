@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 eframe = "0.31.1"
+enigo = "0.3.0"

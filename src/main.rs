@@ -1,10 +1,11 @@
 use eframe::{
     egui::{
-        vec2, Align2, CentralPanel, Color32, Context, FontId, Frame, Key, Pos2, Rect, Stroke, Ui,
-        ViewportBuilder,
+        vec2, Align2, CentralPanel, Color32, Context, Event, FontId, Frame, Key, PointerButton,
+        Pos2, RawInput, Rect, Stroke, Ui, ViewportBuilder,
     },
     App, NativeOptions,
 };
+use enigo::{Direction, Enigo, Mouse, Settings};
 
 const SINGLE_CELL_VAlUES: &str = "QWERASDFUOIPJKL;";
 
@@ -114,13 +115,15 @@ impl Kmouse {
                         .expect(format!("invalid name {}", &a).as_str()),
                 )
             }) {
-                if self.focused_cell.first != '\0' {
-                    self.focused_cell.last = a;
+                if self.focused_cell.first == '\0' || self.focused_cell.last == '\0' {
+                    if self.focused_cell.first != '\0' {
+                        self.focused_cell.last = a;
+                    }
+                    if self.focused_cell.first == '\0' {
+                        self.focused_cell.first = a;
+                    }
+                    println!("{:?}", self.focused_cell)
                 }
-                if self.focused_cell.first == '\0' {
-                    self.focused_cell.first = a;
-                }
-                println!("{:?}", self.focused_cell)
             }
         }
 
@@ -153,7 +156,7 @@ impl Kmouse {
                         );
 
                         if self.focused_cell.first != '\0' && self.focused_cell.last != '\0' {
-                            draw_micro_grids(ctx, cell_width, cell_height, ui, rect, origin);
+                            draw_micro_grids(ctx, cell_width, cell_height, ui, rect);
                         } else {
                             ui.painter().text(
                                 rect.center(),
@@ -171,13 +174,42 @@ impl Kmouse {
         }
     }
 }
+
+fn inject_click(raw_input: &mut RawInput, position: Pos2) {
+    // Simulate mouse move to position
+    raw_input.events.push(Event::PointerMoved(position));
+
+    // Simulate mouse press
+    raw_input.events.push(Event::PointerButton {
+        pos: position,
+        button: PointerButton::Primary,
+        pressed: true,
+        modifiers: Default::default(),
+    });
+
+    // Simulate mouse release
+    raw_input.events.push(Event::PointerButton {
+        pos: position,
+        button: PointerButton::Primary,
+        pressed: false,
+        modifiers: Default::default(),
+    });
+}
+
+fn move_cursor_to(x: i32, y: i32) {
+    let mut enigo = Enigo::new(&Settings::default()).unwrap();
+    enigo
+        .move_mouse(x, y, enigo::Coordinate::Abs)
+        .expect("invalid coordinates"); // screen coordinates in pixels
+    enigo.button(enigo::Button::Left, Direction::Click);
+}
+
 fn draw_micro_grids(
     ctx: &Context,
     parent_cell_width: f32,
     parent_cell_height: f32,
     ui: &mut Ui,
     parent_rect: Rect,
-    parent_origin: Pos2,
 ) {
     let cells: Vec<CellSingular> = SINGLE_CELL_VAlUES
         .chars()
@@ -196,12 +228,25 @@ fn draw_micro_grids(
 
     let mut index = 0;
 
+    let pixels_per_point = ui.ctx().pixels_per_point();
+
     for row in 0..rows {
         for col in 0..cols {
             if index >= length {
                 return;
             }
             let first = &cells[index];
+
+            let rect = Rect::from_min_size(
+                origin + vec2(col as f32 * cell_width, row as f32 * cell_height),
+                vec2(cell_width, cell_height),
+            );
+
+            let pos = rect.center();
+            let coordinates = (
+                (pos.x * pixels_per_point) as i32,
+                (pos.y * pixels_per_point) as i32,
+            );
 
             if ctx.input(|i| {
                 let mut tmp = [0; 4];
@@ -210,12 +255,8 @@ fn draw_micro_grids(
                         .expect(format!("invalid {}", first.unit).as_str()),
                 )
             }) {
-                println!("{:?}", first);
+                move_cursor_to(coordinates.0, coordinates.1);
             }
-            let rect = Rect::from_min_size(
-                origin + vec2(col as f32 * cell_width, row as f32 * cell_height),
-                vec2(cell_width, cell_height),
-            );
 
             ui.painter().rect(
                 rect,
