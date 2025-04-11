@@ -1,7 +1,7 @@
 use eframe::{
     egui::{
-        vec2, Align2, CentralPanel, Color32, Context, FontId, Frame, Key, Rect, Stroke, TextBuffer,
-        Ui, ViewportBuilder,
+        vec2, Align2, CentralPanel, Color32, Context, FontId, Frame, Key, Rect, Stroke, Ui,
+        ViewportBuilder,
     },
     App, NativeOptions,
 };
@@ -71,7 +71,6 @@ impl Kmouse {
     fn generate_letter_combinations() -> Vec<CellPlural> {
         let mut combos: Vec<CellPlural> = vec![];
         let letters = ('A'..='Z').collect::<Vec<_>>();
-        let symbols = vec!['@', '#', '$', '%', '&'];
 
         for &a in &letters {
             for &b in &letters {
@@ -131,31 +130,36 @@ impl Kmouse {
                     return;
                 }
                 let first = &cells[index].first;
+                let last = &cells[index].last;
                 let combo = &cells[index].combo;
 
                 if self.focused_cell.first == '\0'
                     || (self.focused_cell.first != '\0' && &self.focused_cell.first == first)
                 {
-                    let rect = Rect::from_min_size(
-                        origin + vec2(col as f32 * cell_width, row as f32 * cell_height),
-                        vec2(cell_width, cell_height),
-                    );
+                    if self.focused_cell.last == '\0'
+                        || (self.focused_cell.last != '\0' && &self.focused_cell.last == last)
+                    {
+                        let rect = Rect::from_min_size(
+                            origin + vec2(col as f32 * cell_width, row as f32 * cell_height),
+                            vec2(cell_width, cell_height),
+                        );
 
-                    ui.painter().rect(
-                        rect,
-                        0.0,
-                        transparent_color,
-                        Stroke::new(1.0, transparent_color),
-                        eframe::egui::StrokeKind::Middle,
-                    );
+                        ui.painter().rect(
+                            rect,
+                            0.0,
+                            transparent_color,
+                            Stroke::new(1.0, transparent_color),
+                            eframe::egui::StrokeKind::Middle,
+                        );
 
-                    ui.painter().text(
-                        rect.center(),
-                        Align2::CENTER_CENTER,
-                        combo,
-                        FontId::monospace(cell_height * 0.4),
-                        transparent_color,
-                    );
+                        ui.painter().text(
+                            rect.center(),
+                            Align2::CENTER_CENTER,
+                            combo,
+                            FontId::monospace(cell_height * 0.4),
+                            transparent_color,
+                        );
+                    }
                 }
 
                 index += 1;
