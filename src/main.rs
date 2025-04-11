@@ -1,7 +1,7 @@
 use eframe::{
     egui::{
-        vec2, Align2, CentralPanel, Color32, Context, Event, FontId, Frame, Key, PointerButton,
-        Pos2, RawInput, Rect, Stroke, Ui, ViewportBuilder,
+        vec2, Align2, CentralPanel, Color32, Context, FontId, Frame, Key, Rect, Stroke, Ui,
+        ViewportBuilder,
     },
     App, NativeOptions,
 };
@@ -156,7 +156,9 @@ impl Kmouse {
                         );
 
                         if self.focused_cell.first != '\0' && self.focused_cell.last != '\0' {
-                            draw_micro_grids(ctx, cell_width, cell_height, ui, rect);
+                            draw_micro_grids(ctx, cell_width, cell_height, ui, rect, || {
+                                self.focused_cell = FocusedCell::new();
+                            });
                         } else {
                             ui.painter().text(
                                 rect.center(),
@@ -175,42 +177,24 @@ impl Kmouse {
     }
 }
 
-fn inject_click(raw_input: &mut RawInput, position: Pos2) {
-    // Simulate mouse move to position
-    raw_input.events.push(Event::PointerMoved(position));
-
-    // Simulate mouse press
-    raw_input.events.push(Event::PointerButton {
-        pos: position,
-        button: PointerButton::Primary,
-        pressed: true,
-        modifiers: Default::default(),
-    });
-
-    // Simulate mouse release
-    raw_input.events.push(Event::PointerButton {
-        pos: position,
-        button: PointerButton::Primary,
-        pressed: false,
-        modifiers: Default::default(),
-    });
-}
-
 fn move_cursor_to(x: i32, y: i32) {
     let mut enigo = Enigo::new(&Settings::default()).unwrap();
     enigo
         .move_mouse(x, y, enigo::Coordinate::Abs)
-        .expect("invalid coordinates"); // screen coordinates in pixels
-    enigo.button(enigo::Button::Left, Direction::Click);
+        .expect("invalid coordinates");
+    let _ = enigo.button(enigo::Button::Left, Direction::Click);
 }
 
-fn draw_micro_grids(
+fn draw_micro_grids<F>(
     ctx: &Context,
     parent_cell_width: f32,
     parent_cell_height: f32,
     ui: &mut Ui,
     parent_rect: Rect,
-) {
+    mut on_keypress: F,
+) where
+    F: FnMut(),
+{
     let cells: Vec<CellSingular> = SINGLE_CELL_VAlUES
         .chars()
         .map(|c| CellSingular { unit: c })
@@ -256,6 +240,7 @@ fn draw_micro_grids(
                 )
             }) {
                 move_cursor_to(coordinates.0, coordinates.1);
+                on_keypress();
             }
 
             ui.painter().rect(
