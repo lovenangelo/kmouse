@@ -1,3 +1,8 @@
+use std::{
+    sync::{Arc, Mutex},
+    thread,
+};
+
 use eframe::{
     egui::{
         vec2, Align2, CentralPanel, Color32, Context, FontId, Frame, Key, Rect, Stroke, Ui,
@@ -6,23 +11,42 @@ use eframe::{
     App, NativeOptions,
 };
 use enigo::{Direction, Enigo, Mouse, Settings};
+use rdev::{listen, EventType};
 
 const SINGLE_CELL_VAlUES: &str = "QWERASDFUOIPJKL;";
 
 fn main() -> eframe::Result {
+    let kmouse = Kmouse::default();
+    let visible_clone = Arc::clone(&kmouse.is_visible);
+
+    thread::spawn(move || {
+        if let Err(error) = listen(move |event| {
+            if let EventType::KeyPress(key) = event.event_type {
+                if key == rdev::Key::ControlRight {
+                    let mut vis = visible_clone.lock().unwrap();
+                    *vis = !*vis;
+                    println!("Toggled visibility: {}", *vis);
+                }
+            }
+        }) {
+            eprintln!("Error: {:?}", error);
+        }
+    });
+
     let native_options = NativeOptions {
         viewport: ViewportBuilder::default()
             .with_mouse_passthrough(true)
             .with_transparent(true)
             .with_titlebar_shown(false)
             .with_decorations(false)
-            .with_fullscreen(true),
+            .with_fullscreen(true)
+            .with_always_on_top(),
         ..Default::default()
     };
     eframe::run_native(
         "Kmouse",
         native_options,
-        Box::new(|_cc| Ok(Box::<Kmouse>::default())),
+        Box::new(|_cc| Ok(Box::new(kmouse))),
     )
 }
 
@@ -31,6 +55,7 @@ struct Kmouse {
     cells: Vec<CellPlural>,
     focused_cell: FocusedCell,
     has_clicked: bool,
+    is_visible: Arc<Mutex<bool>>,
 }
 
 struct CellPlural {
@@ -279,12 +304,23 @@ impl Default for Kmouse {
             title: String::from("Kmouse"),
             focused_cell: FocusedCell::new(),
             has_clicked: false,
+            is_visible: Arc::new(Mutex::new(true)),
         }
     }
 }
 
 impl App for Kmouse {
-    fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
+        {
+            let visible = self.is_visible.lock().unwrap();
+            if !*visible {
+                // This hides the app (sort of — the window still runs but we skip drawing)
+                ctx.send_viewport_cmd(eframe::egui::ViewportCommand::Visible(false));
+                return;
+            } else {
+                ctx.send_viewport_cmd(eframe::egui::ViewportCommand::Visible(true));
+            }
+        }
         CentralPanel::default().frame(Frame::NONE).show(ctx, |ui| {
             self.draw_grid(ctx, ui);
         });
