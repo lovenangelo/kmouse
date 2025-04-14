@@ -5,27 +5,49 @@ use std::{
 
 use eframe::{
     egui::{
-        vec2, Align2, CentralPanel, Color32, Context, FontId, Frame, Key, Rect, Stroke, Ui,
-        ViewportBuilder,
+        vec2, Align, Align2, CentralPanel, Color32, Context, Direction, FontId, Frame, Key, Label,
+        Layout, Rect, Sense, Stroke, Ui, ViewportBuilder, Window,
     },
     App, NativeOptions,
 };
-use enigo::{Direction, Enigo, Mouse, Settings};
+use enigo::{Enigo, Mouse, Settings};
+use once_cell::sync::OnceCell;
 use rdev::{listen, EventType};
-
-const SINGLE_CELL_VAlUES: &str = "QWERASDFUOIPJKL;";
 
 fn main() -> eframe::Result {
     let kmouse = Kmouse::default();
+
     let visible_clone = Arc::clone(&kmouse.is_visible);
+    let show_grid_clone = Arc::clone(&kmouse.show_grid);
 
     thread::spawn(move || {
         if let Err(error) = listen(move |event| {
+            let mut vis = visible_clone.lock().unwrap();
+            let mut show_grid = show_grid_clone.lock().unwrap();
             if let EventType::KeyPress(key) = event.event_type {
-                if key == rdev::Key::ControlRight {
-                    let mut vis = visible_clone.lock().unwrap();
-                    *vis = !*vis;
-                    println!("Toggled visibility: {}", *vis);
+                if let Some(ctx) = CTX_CELL.get() {
+                    if key == rdev::Key::ControlRight && !*show_grid {
+                        ctx.send_viewport_cmd(eframe::egui::ViewportCommand::Visible(false));
+                        ctx.send_viewport_cmd(eframe::egui::ViewportCommand::Visible(true));
+                        *show_grid = true;
+                        *vis = !*vis;
+                        return;
+                    }
+                    if key == rdev::Key::ControlRight && *show_grid {
+                        *vis = !*vis;
+                        if *vis && *show_grid {
+                            ctx.send_viewport_cmd(eframe::egui::ViewportCommand::Visible(true));
+                            ctx.send_viewport_cmd(eframe::egui::ViewportCommand::WindowLevel(
+                                eframe::egui::WindowLevel::AlwaysOnTop,
+                            ));
+                            ctx.send_viewport_cmd(eframe::egui::ViewportCommand::Fullscreen(true));
+                        }
+
+                        if !*vis && *show_grid {
+                            ctx.send_viewport_cmd(eframe::egui::ViewportCommand::Visible(false));
+                            ctx.send_viewport_cmd(eframe::egui::ViewportCommand::Fullscreen(true));
+                        }
+                    }
                 }
             }
         }) {
@@ -36,13 +58,14 @@ fn main() -> eframe::Result {
     let native_options = NativeOptions {
         viewport: ViewportBuilder::default()
             .with_mouse_passthrough(true)
+            .with_fullscreen(true)
             .with_transparent(true)
             .with_titlebar_shown(false)
-            .with_decorations(false)
-            .with_fullscreen(true)
-            .with_always_on_top(),
+            .with_always_on_top()
+            .with_decorations(false),
         ..Default::default()
     };
+
     eframe::run_native(
         "Kmouse",
         native_options,
@@ -51,11 +74,11 @@ fn main() -> eframe::Result {
 }
 
 struct Kmouse {
-    title: String,
     cells: Vec<CellPlural>,
     focused_cell: FocusedCell,
     has_clicked: bool,
     is_visible: Arc<Mutex<bool>>,
+    show_grid: Arc<Mutex<bool>>,
 }
 
 struct CellPlural {
@@ -88,6 +111,8 @@ impl CellPlural {
         }
     }
 }
+
+static CTX_CELL: OnceCell<Arc<Context>> = OnceCell::new();
 
 #[derive(Debug)]
 struct CellSingular {
@@ -183,7 +208,7 @@ impl Kmouse {
                             0.0,
                             transparent_color,
                             Stroke::new(1.0, transparent_color),
-                            eframe::egui::StrokeKind::Middle,
+                            eframe::egui::StrokeKind::Outside,
                         );
 
                         if self.focused_cell.first != '\0' && self.focused_cell.last != '\0' {
@@ -214,7 +239,7 @@ fn move_cursor_to(x: i32, y: i32) {
     enigo
         .move_mouse(x, y, enigo::Coordinate::Abs)
         .expect("invalid coordinates");
-    let _ = enigo.button(enigo::Button::Left, Direction::Click);
+    let _ = enigo.button(enigo::Button::Left, enigo::Direction::Click);
 }
 
 fn draw_micro_grids<F>(
@@ -227,11 +252,12 @@ fn draw_micro_grids<F>(
 ) where
     F: FnMut(),
 {
-    let cells: Vec<CellSingular> = SINGLE_CELL_VAlUES
+    let single_cell_values: &str = "QWERASDFUOIPJKL;";
+    let cells: Vec<CellSingular> = single_cell_values
         .chars()
         .map(|c| CellSingular { unit: c })
         .collect();
-    let length = SINGLE_CELL_VAlUES.chars().count();
+    let length = single_cell_values.chars().count();
 
     let cols: usize = 4;
     let rows: usize = 4;
@@ -271,7 +297,6 @@ fn draw_micro_grids<F>(
                         .expect(format!("invalid {}", first.unit).as_str()),
                 )
             }) {
-                println!("{:?}", first.unit);
                 move_cursor_to(coordinates.0, coordinates.1);
                 on_keypress();
             }
@@ -301,28 +326,48 @@ impl Default for Kmouse {
     fn default() -> Self {
         Self {
             cells: Self::generate_letter_combinations(),
-            title: String::from("Kmouse"),
             focused_cell: FocusedCell::new(),
             has_clicked: false,
             is_visible: Arc::new(Mutex::new(true)),
+            show_grid: Arc::new(Mutex::new(false)),
         }
     }
 }
 
 impl App for Kmouse {
-    fn update(&mut self, ctx: &Context, frame: &mut eframe::Frame) {
-        {
-            let visible = self.is_visible.lock().unwrap();
-            if !*visible {
-                // This hides the app (sort of — the window still runs but we skip drawing)
-                ctx.send_viewport_cmd(eframe::egui::ViewportCommand::Visible(false));
-                return;
-            } else {
-                ctx.send_viewport_cmd(eframe::egui::ViewportCommand::Visible(true));
-            }
+    fn clear_color(&self, _visuals: &eframe::egui::Visuals) -> [f32; 4] {
+        [0.0, 0.0, 0.0, 0.0]
+    }
+    fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+        let _ = CTX_CELL.set(Arc::new(ctx.clone()));
+        let visible_mtx = self.is_visible.lock().unwrap();
+        let show_grid_mtx = self.show_grid.lock().unwrap();
+        let vis = *visible_mtx;
+        let show_grid = *show_grid_mtx;
+
+        drop(visible_mtx);
+        drop(show_grid_mtx);
+        let mut transparent_color = Color32::from_rgba_unmultiplied(0, 0, 0, 0);
+        if show_grid {
+            transparent_color = Color32::from_rgba_unmultiplied(30, 60, 90, 89);
         }
-        CentralPanel::default().frame(Frame::NONE).show(ctx, |ui| {
-            self.draw_grid(ctx, ui);
-        });
+
+        if vis {
+            let transparent_frame = Frame {
+                fill: transparent_color,
+                ..Frame::default()
+            };
+            CentralPanel::default()
+                .frame(transparent_frame)
+                .show(ctx, |ui| {
+                    if show_grid {
+                        self.draw_grid(ctx, ui);
+                    } else {
+                        Window::new("Kmouse").show(ctx, |ui| {
+                            ui.label("Press Right-Control Key to start");
+                        });
+                    }
+                });
+        }
     }
 }

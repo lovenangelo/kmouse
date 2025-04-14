@@ -1692,6 +1692,7 @@ version = "0.1.0"
 dependencies = [
  "eframe",
  "enigo",
+ "once_cell",
  "rdev",
 ]
 

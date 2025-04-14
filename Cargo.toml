@@ -6,4 +6,5 @@ edition = "2021"
 [dependencies]
 eframe = "0.31.1"
 enigo = "0.3.0"
+once_cell = "1.21.3"
 rdev = "0.5.3"
