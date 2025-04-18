@@ -1694,6 +1694,7 @@ dependencies = [
  "enigo",
  "once_cell",
  "rdev",
+ "x11rb",
 ]
 
 [[package]]
