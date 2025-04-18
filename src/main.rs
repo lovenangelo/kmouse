@@ -362,13 +362,6 @@ fn draw_micro_grids<F>(
                 ((pos.x + kmargins.left as f32) * pixels_per_point) as i32,
                 ((pos.y + kmargins.top as f32) * pixels_per_point) as i32,
             );
-            /*
-            let coordinates = (
-                (pos.x * pixels_per_point) as i32,
-                (pos.y * pixels_per_point) as i32,
-            );
-            */
-            println!("{:?}", kmargins);
             if ctx.input(|i| {
                 let mut tmp = [0; 4];
                 i.key_pressed(
