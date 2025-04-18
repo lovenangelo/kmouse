@@ -55,17 +55,29 @@ fn main() -> eframe::Result {
     let margin_left = work_x;
     let margin_right = screen_width - (work_x + work_width);
 
-    let kmargin = KmouseMargin {
+    let kmargin_frame = KmouseMargin {
+        top: margin_top as i8,
+        left: margin_left as i8,
+        right: margin_right as i8,
+        bottom: margin_bottom as i8,
+    };
+    let kmargin_coordinate = KmouseMargin {
+        top: margin_top as i8,
+        left: margin_left as i8,
+        right: margin_right as i8,
+        bottom: margin_bottom as i8,
+    };
+    let base_margine = KmouseMargin {
         top: margin_top as i8,
         left: margin_left as i8,
         right: margin_right as i8,
         bottom: margin_bottom as i8,
     };
 
-    println!("{:?}", kmargin);
-
     let mut kmouse = Kmouse::default();
-    kmouse.margin = kmargin;
+    kmouse.frame_margin = kmargin_frame;
+    kmouse.coordinates_margin = kmargin_coordinate;
+    kmouse.base_margin = base_margine;
     let visible_clone = Arc::clone(&kmouse.is_visible);
     let has_started_clone = Arc::clone(&kmouse.has_completed);
     thread::spawn(move || {
@@ -119,7 +131,9 @@ struct Kmouse {
     cells: Vec<CellPlural>,
     focused_cell: FocusedCell,
     is_visible: Arc<Mutex<bool>>,
-    margin: KmouseMargin,
+    coordinates_margin: KmouseMargin,
+    base_margin: KmouseMargin,
+    frame_margin: KmouseMargin,
     has_completed: Arc<Mutex<bool>>,
 }
 
@@ -266,7 +280,7 @@ impl Kmouse {
                                 ui,
                                 rect,
                                 &mut enigo,
-                                &self.margin,
+                                &self.coordinates_margin,
                                 self.focused_cell.first != '\0' && self.focused_cell.last != '\0',
                                 || {
                                     *vis = false;
@@ -343,10 +357,18 @@ fn draw_micro_grids<F>(
             );
 
             let pos = rect.center();
+
             let coordinates = (
                 ((pos.x + kmargins.left as f32) * pixels_per_point) as i32,
-                ((pos.y + kmargins.right as f32) * pixels_per_point) as i32,
+                ((pos.y + kmargins.top as f32) * pixels_per_point) as i32,
             );
+            /*
+            let coordinates = (
+                (pos.x * pixels_per_point) as i32,
+                (pos.y * pixels_per_point) as i32,
+            );
+            */
+            println!("{:?}", kmargins);
             if ctx.input(|i| {
                 let mut tmp = [0; 4];
                 i.key_pressed(
@@ -389,7 +411,19 @@ impl Default for Kmouse {
             focused_cell: FocusedCell::new(),
             has_completed: Arc::new(Mutex::new(false)),
             is_visible: Arc::new(Mutex::new(true)),
-            margin: KmouseMargin {
+            base_margin: KmouseMargin {
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+            },
+            coordinates_margin: KmouseMargin {
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+            },
+            frame_margin: KmouseMargin {
                 top: 0,
                 left: 0,
                 right: 0,
@@ -409,15 +443,31 @@ impl App for Kmouse {
         let has_started_mutex = self.has_completed.lock().unwrap();
         let has_started = *has_started_mutex;
         drop(has_started_mutex);
-        let margin = if !has_started {
-            Margin {
-                top: self.margin.top,
-                left: self.margin.left,
-                right: self.margin.right,
-                bottom: self.margin.bottom,
-            }
+        let margin = if has_started {
+            println!("started");
+            let margin = Margin::ZERO;
+            self.coordinates_margin = KmouseMargin {
+                top: self.base_margin.top,
+                left: self.base_margin.left,
+                right: self.base_margin.right,
+                bottom: self.base_margin.bottom,
+            };
+            margin
         } else {
-            Margin::ZERO
+            let margin = Margin {
+                top: self.frame_margin.top,
+                left: self.frame_margin.left,
+                right: self.frame_margin.right,
+                bottom: self.frame_margin.bottom,
+            };
+            self.coordinates_margin = KmouseMargin {
+                left: 0,
+                top: 0,
+                right: 0,
+                bottom: 0,
+            };
+            println!("not started");
+            margin
         };
 
         let transparent_frame = Frame {
