@@ -11,7 +11,7 @@ use eframe::{
     App, NativeOptions,
 };
 
-use enigo::{Enigo, Mouse, Settings};
+use enigo::{Enigo, Keyboard, Mouse, Settings};
 use once_cell::sync::OnceCell;
 use rdev::{listen, EventType};
 use x11rb::connection::Connection;
@@ -80,10 +80,12 @@ fn main() -> eframe::Result {
     kmouse.base_margin = base_margine;
     let visible_clone = Arc::clone(&kmouse.is_visible);
     let has_started_clone = Arc::clone(&kmouse.has_completed);
+    let focused_cell_clone = Arc::clone(&kmouse.focused_cell);
     thread::spawn(move || {
         if let Err(error) = listen(move |event| {
             let mut vis = visible_clone.lock().unwrap();
             let mut has_started = has_started_clone.lock().unwrap();
+            let mut focused_cell = focused_cell_clone.lock().unwrap();
             if let EventType::KeyPress(key) = event.event_type {
                 if let Some(ctx) = CTX_CELL.get() {
                     if key == rdev::Key::ControlRight {
@@ -91,11 +93,9 @@ fn main() -> eframe::Result {
                         if *vis {
                             if !*has_started {
                                 *has_started = true;
-                                ctx.send_viewport_cmd(eframe::egui::ViewportCommand::Visible(
-                                    false,
-                                ));
                             }
                             ctx.send_viewport_cmd(eframe::egui::ViewportCommand::Visible(true));
+                            *focused_cell = FocusedCell::new();
                         }
                         if !*vis {
                             ctx.send_viewport_cmd(eframe::egui::ViewportCommand::Visible(false));
@@ -129,7 +129,7 @@ fn main() -> eframe::Result {
 #[derive(Debug)]
 struct Kmouse {
     cells: Vec<CellPlural>,
-    focused_cell: FocusedCell,
+    focused_cell: Arc<Mutex<FocusedCell>>,
     is_visible: Arc<Mutex<bool>>,
     coordinates_margin: KmouseMargin,
     base_margin: KmouseMargin,
@@ -156,6 +156,7 @@ struct CellPlural {
 struct FocusedCell {
     first: char,
     last: char,
+    conclusion: char,
 }
 
 impl FocusedCell {
@@ -163,6 +164,7 @@ impl FocusedCell {
         Self {
             first: char::default(),
             last: char::default(),
+            conclusion: char::default(),
         }
     }
 }
@@ -220,27 +222,30 @@ impl Kmouse {
 
         let mut vis = self.is_visible.lock().unwrap();
 
+        let mut focused_cell = self.focused_cell.lock().unwrap();
+
         if ctx.input(|i| i.key_pressed(Key::Escape)) {
-            self.focused_cell = FocusedCell::new();
+            *focused_cell = FocusedCell::new();
         }
         let letters = ('A'..='Z').collect::<Vec<_>>();
         let mut enigo = Enigo::new(&Settings::default()).unwrap();
 
-        for &a in &letters {
-            if ctx.input(|i| {
-                i.key_released(
-                    Key::from_name(&a.to_string().as_str())
-                        .expect(format!("invalid name {}", &a).as_str()),
-                )
-            }) {
-                if self.focused_cell.first == '\0' || self.focused_cell.last == '\0' {
-                    if self.focused_cell.first != '\0' {
-                        self.focused_cell.last = a;
+        if focused_cell.conclusion == '\0' {
+            for &a in &letters {
+                if ctx.input(|i| {
+                    i.key_released(
+                        Key::from_name(&a.to_string().as_str())
+                            .expect(format!("invalid name {}", &a).as_str()),
+                    )
+                }) {
+                    if focused_cell.first == '\0' || focused_cell.last == '\0' {
+                        if focused_cell.first != '\0' {
+                            focused_cell.last = a;
+                        }
+                        if focused_cell.first == '\0' {
+                            focused_cell.first = a;
+                        }
                     }
-                    if self.focused_cell.first == '\0' {
-                        self.focused_cell.first = a;
-                    }
-                    println!("{:?}", self.focused_cell)
                 }
             }
         }
@@ -254,11 +259,11 @@ impl Kmouse {
                 let last = &cells[index].last;
                 let combo = &cells[index].combo;
 
-                if self.focused_cell.first == '\0'
-                    || (self.focused_cell.first != '\0' && &self.focused_cell.first == first)
+                if focused_cell.first == '\0'
+                    || (focused_cell.first != '\0' && &focused_cell.first == first)
                 {
-                    if self.focused_cell.last == '\0'
-                        || (self.focused_cell.last != '\0' && &self.focused_cell.last == last)
+                    if focused_cell.last == '\0'
+                        || (focused_cell.last != '\0' && &focused_cell.last == last)
                     {
                         let rect = Rect::from_min_size(
                             origin + vec2(col as f32 * cell_width, row as f32 * cell_height),
@@ -272,7 +277,7 @@ impl Kmouse {
                             Stroke::new(1.0, transparent_color),
                             eframe::egui::StrokeKind::Outside,
                         );
-                        if self.focused_cell.first != '\0' && self.focused_cell.last != '\0' {
+                        if focused_cell.first != '\0' && focused_cell.last != '\0' {
                             draw_micro_grids(
                                 ctx,
                                 cell_width,
@@ -281,9 +286,15 @@ impl Kmouse {
                                 rect,
                                 &mut enigo,
                                 &self.coordinates_margin,
-                                self.focused_cell.first != '\0' && self.focused_cell.last != '\0',
+                                focused_cell.first != '\0'
+                                    && focused_cell.last != '\0'
+                                    && focused_cell.conclusion == '\0',
                                 || {
                                     *vis = false;
+                                    ctx.send_viewport_cmd(eframe::egui::ViewportCommand::Visible(
+                                        false,
+                                    ));
+                                    *focused_cell = FocusedCell::new();
                                 },
                             );
                         } else {
@@ -308,7 +319,9 @@ fn move_cursor_to(x: i32, y: i32, enigo: &mut Enigo) -> bool {
     enigo
         .move_mouse(x, y, enigo::Coordinate::Abs)
         .expect("invalid coordinates");
-    true
+    enigo
+        .button(enigo::Button::Left, enigo::Direction::Click)
+        .is_ok()
 }
 
 fn draw_micro_grids<F>(
@@ -362,14 +375,14 @@ fn draw_micro_grids<F>(
                 ((pos.x + kmargins.left as f32) * pixels_per_point) as i32,
                 ((pos.y + kmargins.top as f32) * pixels_per_point) as i32,
             );
-            if ctx.input(|i| {
-                let mut tmp = [0; 4];
-                i.key_pressed(
-                    Key::from_name(first.unit.encode_utf8(&mut tmp))
-                        .expect(format!("invalid {}", first.unit).as_str()),
-                )
-            }) {
-                if has_focus {
+            if has_focus {
+                if ctx.input(|i| {
+                    let mut tmp = [0; 4];
+                    i.key_pressed(
+                        Key::from_name(first.unit.encode_utf8(&mut tmp))
+                            .expect(format!("invalid {}", first.unit).as_str()),
+                    )
+                }) {
                     if move_cursor_to(coordinates.0, coordinates.1, enigo) {
                         on_keypress();
                     }
@@ -401,7 +414,7 @@ impl Default for Kmouse {
     fn default() -> Self {
         Self {
             cells: Self::generate_letter_combinations(),
-            focused_cell: FocusedCell::new(),
+            focused_cell: Arc::new(Mutex::new(FocusedCell::new())),
             has_completed: Arc::new(Mutex::new(false)),
             is_visible: Arc::new(Mutex::new(true)),
             base_margin: KmouseMargin {
@@ -437,7 +450,6 @@ impl App for Kmouse {
         let has_started = *has_started_mutex;
         drop(has_started_mutex);
         let margin = if has_started {
-            println!("started");
             let margin = Margin::ZERO;
             self.coordinates_margin = KmouseMargin {
                 top: self.base_margin.top,
@@ -459,7 +471,6 @@ impl App for Kmouse {
                 right: 0,
                 bottom: 0,
             };
-            println!("not started");
             margin
         };
 
