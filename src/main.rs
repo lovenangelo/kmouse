@@ -18,7 +18,7 @@ use x11rb::connection::Connection;
 use x11rb::protocol::xproto::{AtomEnum, ConnectionExt};
 use x11rb::rust_connection::RustConnection;
 
-fn get_work_area() -> Result<(u32, u32, u32, u32), Box<dyn std::error::Error>> {
+fn get_work_area() -> Result<(i32, i32, i32, i32), Box<dyn std::error::Error>> {
     let (conn, screen_num) = RustConnection::connect(None)?;
     let screen = &conn.setup().roots[screen_num];
 
@@ -34,10 +34,10 @@ fn get_work_area() -> Result<(u32, u32, u32, u32), Box<dyn std::error::Error>> {
     if let Some(data) = prop.value32() {
         let values: Vec<u32> = data.collect();
         if values.len() >= 4 {
-            let x = values[0];
-            let y = values[1];
-            let width = values[2];
-            let height = values[3];
+            let x = values[0] as i32;
+            let y = values[1] as i32;
+            let width = screen.width_in_pixels as i32;
+            let height = screen.height_in_pixels as i32;
             return Ok((x, y, width, height));
         }
     }
@@ -47,8 +47,10 @@ fn get_work_area() -> Result<(u32, u32, u32, u32), Box<dyn std::error::Error>> {
 
 fn main() -> eframe::Result {
     let (work_x, work_y, work_width, work_height) = get_work_area().unwrap();
-    let screen_width = 1920; // or detect this dynamically
-    let screen_height = 1080;
+    println!("{},{},{},{}", work_x, work_y, work_width, work_height);
+    let screen_width = work_width;
+    let screen_height = work_height;
+    println!("{},{}", screen_width, screen_height);
 
     let margin_top = work_y;
     let margin_bottom = screen_height - (work_y + work_height);
