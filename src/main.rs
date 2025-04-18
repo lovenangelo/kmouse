@@ -47,10 +47,8 @@ fn get_work_area() -> Result<(i32, i32, i32, i32), Box<dyn std::error::Error>> {
 
 fn main() -> eframe::Result {
     let (work_x, work_y, work_width, work_height) = get_work_area().unwrap();
-    println!("{},{},{},{}", work_x, work_y, work_width, work_height);
     let screen_width = work_width;
     let screen_height = work_height;
-    println!("{},{}", screen_width, screen_height);
 
     let margin_top = work_y;
     let margin_bottom = screen_height - (work_y + work_height);
