@@ -1,7 +1,7 @@
 //! Kmouse application implementation
 
 use eframe::{
-    egui::{CentralPanel, Context, Margin, ViewportBuilder},
+    egui::{CentralPanel, Context, ViewportBuilder},
     App, NativeOptions,
 };
 use std::sync::{Arc, Mutex};
