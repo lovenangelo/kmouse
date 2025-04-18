@@ -97,11 +97,9 @@ impl App for KmouseApp {
                 right: self.config.base_margin.right,
                 bottom: self.config.base_margin.bottom,
             };
-            println!("started");
-            self.config.frame_margin.to_egui()
+            KMargin::default().to_egui()
         } else {
             self.config.coordinates_margin = KMargin::default();
-            println!("not started");
             eframe::egui::Margin {
                 top: self.config.frame_margin.top as i8,
                 left: self.config.frame_margin.left as i8,
