@@ -1,15 +1,18 @@
 //! Kmouse application implementation
 
 use eframe::{
-    egui::{CentralPanel, Context, ViewportBuilder},
+    egui::{CentralPanel, Context, Margin, ViewportBuilder},
     App, NativeOptions,
 };
 use std::sync::{Arc, Mutex};
 
 use crate::config::AppConfig;
-use crate::input::keyboard::{self, CTX_CELL};
 use crate::models::cell::FocusedCell;
 use crate::ui::{self, grid};
+use crate::{
+    input::keyboard::{self, CTX_CELL},
+    models::margin::Margin as KMargin,
+};
 
 /// Main application state
 pub struct KmouseApp {
@@ -88,13 +91,22 @@ impl App for KmouseApp {
         // Determine margin based on application state
         let has_started = *self.initiated.lock().unwrap();
         let margin = if has_started {
-            self.config.margin.to_egui()
+            self.config.coordinates_margin = KMargin {
+                top: self.config.base_margin.top,
+                left: self.config.base_margin.left,
+                right: self.config.base_margin.right,
+                bottom: self.config.base_margin.bottom,
+            };
+            println!("started");
+            self.config.frame_margin.to_egui()
         } else {
+            self.config.coordinates_margin = KMargin::default();
+            println!("not started");
             eframe::egui::Margin {
-                top: self.config.margin.top as i8,
-                left: self.config.margin.left as i8,
-                right: self.config.margin.right as i8,
-                bottom: self.config.margin.bottom as i8,
+                top: self.config.frame_margin.top as i8,
+                left: self.config.frame_margin.left as i8,
+                right: self.config.frame_margin.right as i8,
+                bottom: self.config.frame_margin.bottom as i8,
             }
         };
 
@@ -117,7 +129,7 @@ impl App for KmouseApp {
                     &self.cells,
                     &mut focused_cell,
                     &mut is_visible,
-                    &self.config.margin,
+                    &self.config.coordinates_margin,
                     self.config.ui_transparency,
                     self.config.exit_key,
                 );

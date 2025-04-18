@@ -6,7 +6,7 @@ use x11rb::protocol::xproto::{AtomEnum, ConnectionExt};
 use x11rb::rust_connection::RustConnection;
 
 /// Get the work area from the X11 window system
-pub fn get_work_area() -> Result<(u32, u32, u32, u32)> {
+pub fn get_work_area() -> Result<(i32, i32, i32, i32)> {
     // Connect to the X11 server
     let (conn, screen_num) = RustConnection::connect(None).expect("Error: rust connection");
     let screen = &conn.setup().roots[screen_num];
@@ -24,10 +24,10 @@ pub fn get_work_area() -> Result<(u32, u32, u32, u32)> {
     if let Some(data) = prop.value32() {
         let values: Vec<u32> = data.collect();
         if values.len() >= 4 {
-            let x = values[0];
-            let y = values[1];
-            let width = values[2];
-            let height = values[3];
+            let x = values[0] as i32;
+            let y = values[1] as i32;
+            let width = values[2] as i32;
+            let height = values[3] as i32;
             return Ok((x, y, width, height));
         }
     }

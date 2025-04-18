@@ -8,11 +8,13 @@ use crate::system::x11;
 #[derive(Debug, Clone)]
 pub struct AppConfig {
     /// Screen dimensions
-    pub screen_width: u32,
-    pub screen_height: u32,
+    pub screen_width: i32,
+    pub screen_height: i32,
 
     /// Work area margins
-    pub margin: Margin,
+    pub frame_margin: Margin,
+    pub coordinates_margin: Margin,
+    pub base_margin: Margin,
 
     /// UI settings
     pub cell_size: f32,
@@ -29,26 +31,26 @@ impl AppConfig {
     pub fn load() -> Result<Self> {
         // Get work area from X11
         let (work_x, work_y, work_width, work_height) = x11::get_work_area()?;
-
-        println!("{},{},{},{}", work_x, work_y, work_width, work_height);
-        let screen_width = work_width;
-        let screen_height = work_height;
+        let screen_width = 1920;
+        let screen_height = 1080;
 
         // Calculate margins
         let margin_top = work_y;
         let margin_bottom = screen_height - (work_y + work_height);
         let margin_left = work_x;
         let margin_right = screen_width - (work_x + work_width);
-
+        let margin = Margin {
+            top: margin_top as i32,
+            left: margin_left as i32,
+            right: margin_right as i32,
+            bottom: margin_bottom as i32,
+        };
         Ok(Self {
             screen_width,
             screen_height,
-            margin: Margin {
-                top: margin_top as i32,
-                left: margin_left as i32,
-                right: margin_right as i32,
-                bottom: margin_bottom as i32,
-            },
+            frame_margin: margin,
+            base_margin: margin,
+            coordinates_margin: margin,
             cell_size: 64.0,
             font_scale: 0.4,
             ui_transparency: 10,
@@ -63,7 +65,9 @@ impl Default for AppConfig {
         Self {
             screen_width: 1920,
             screen_height: 1080,
-            margin: Margin::default(),
+            frame_margin: Margin::default(),
+            coordinates_margin: Margin::default(),
+            base_margin: Margin::default(),
             cell_size: 64.0,
             font_scale: 0.4,
             ui_transparency: 10,
