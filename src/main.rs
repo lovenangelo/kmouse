@@ -13,6 +13,12 @@ mod ui;
 
 use app::KmouseApp;
 use config::AppConfig;
+use enigo::{Enigo, Mouse, Settings};
+use once_cell::sync::OnceCell;
+use rdev::{listen, EventType};
+use x11rb::connection::Connection;
+use x11rb::protocol::xproto::{AtomEnum, ConnectionExt};
+use x11rb::rust_connection::RustConnection;
 
 fn main() -> eframe::Result<()> {
     // Initialize logging
