@@ -6,7 +6,7 @@ use eframe::egui::{Color32, Frame, Margin};
 
 /// Create a transparent frame
 pub fn create_transparent_frame(margin: Margin, transparency: u8) -> Frame {
-    let transparent_color = Color32::from_rgba_unmultiplied(30, 60, 90, transparency);
+    let transparent_color = Color32::from_rgba_unmultiplied(112, 66, 20, transparency);
 
     Frame {
         fill: transparent_color,

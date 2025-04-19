@@ -80,10 +80,6 @@ impl KmouseApp {
 }
 
 impl App for KmouseApp {
-    fn clear_color(&self, _visuals: &eframe::egui::Visuals) -> [f32; 4] {
-        [0.0, 0.0, 0.0, 0.0] // Transparent background
-    }
-
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
         // Store context for global access
         let _ = CTX_CELL.set(Arc::new(ctx.clone()));
