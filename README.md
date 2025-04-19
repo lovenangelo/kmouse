@@ -33,7 +33,21 @@ The latest release is [`v0.1.0-beta`](https://github.com/lovenangelo/kmouse/rele
 ### Prerequisites
 
 - Rust toolchain (1.70.0 or newer)
-- X11 development libraries
+- **X11 development libraries** are required for Linux systems.
+  - Install the necessary dependencies if they are not already present on your system:
+
+    For **Debian/Ubuntu-based** systems:
+
+    ```bash
+    sudo apt-get install libxtst6 libgtk-3-0
+    ```
+
+    This installs:
+    - `libxtst6`: X11 library for simulating user input, necessary for mouse control.
+    - `libgtk-3-0`: GTK 3 library required for the graphical user interface.
+
+    **Note:** `libc6`, `libgl1`, and `libx11-6` are usually pre-installed with standard Ubuntu/X11 setups.
+
 - Cargo
 
 ### From Source
