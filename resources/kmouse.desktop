@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Kmouse
+Comment=An accessibility tool for hands-free clicking
+Exec=kmouse
+Icon=kmouse
+Terminal=false
+Type=Application
+Categories=Utility;Accessibility;

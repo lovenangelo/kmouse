@@ -2,6 +2,10 @@
 name = "kmouse"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+license-file = "LICENSE"
+authors = ["Loven Angelo G. Dayola <lovenangelo.dev@gmail.com>"]
+description = "Kmouse is a lightweight accessibility application designed to help users interact with their screen without relying on a physical mouse or trackpad. It enables on-screen clicking through alternative input methods, enhancing accessibility for users with limited mobility."
 
 [dependencies]
 eframe = "0.31.1"
@@ -10,3 +14,12 @@ env_logger = "0.11.8"
 once_cell = "1.21.3"
 rdev = "0.5.3"
 x11rb = "0.13.1"
+
+[package.metadata.deb]
+maintainer = "Loven Angelo Garcia Dayola"
+depends = "libc6 (>= 2.31), libgl1, libx11-6, libxtst6, libgtk-3-0"
+assets = [
+    ["target/release/kmouse", "usr/bin/kmouse", "755"],
+    ["resources/icons/kmouse.png", "usr/share/icons/hicolor/256x256/apps/kmouse.png", "644"],
+    ["resources/kmouse.desktop", "usr/share/applications/kmouse.desktop", "644"]
+]
